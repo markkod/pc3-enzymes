@@ -10,6 +10,7 @@ from sklearn import mixture, preprocessing
 from scipy.stats import poisson
 import csv
 from collections import defaultdict
+from pprint import pprint
 
 from src.bin import Bin
 from src.interval import Interval
@@ -364,7 +365,8 @@ def get_clusters_and_means(candidate_list, data, result, means_before):
         amount += len(projected_cluster_dict[pj])
 
     # print(amount)
-    print("Final cluster means: ", means_after_bgm)
+    print("Final cluster means:")
+    pprint(means_after_bgm)
     return means_after_bgm, projected_cluster_dict, clustered_points
 
 
