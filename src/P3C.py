@@ -9,6 +9,7 @@ import sys
 from sklearn import mixture, preprocessing
 from scipy.stats import poisson
 import csv
+from collections import defaultdict
 
 from src.bin import Bin
 from src.interval import Interval
@@ -343,18 +344,20 @@ def get_result(data, candidate_list, inv_cov_cluster_dict):
 
 def get_clusters_and_means(candidate_list, data, result, means_before):
     clustered_points = list()
-    projected_cluster_dict = dict()
-    for c in range(len(candidate_list)):
-        projected_cluster_dict[c] = []
+    projected_cluster_dict = defaultdict(list)
 
     for assigned_cluster, p in list(zip(result, data)):
         clustered_points.append((assigned_cluster,p))
-        if assigned_cluster in projected_cluster_dict:
-            projected_cluster_dict[assigned_cluster].append(p)
+        projected_cluster_dict[assigned_cluster].append(p)
 
-    means_after_bgm = list()        
+    means_after_bgm = {}       
     for pj in projected_cluster_dict.keys():
-        means_after_bgm.append(np.mean(np.array(projected_cluster_dict[pj]), axis = 0))
+        if len(projected_cluster_dict[pj]) == 0:
+            continue
+            mean = np.zeros(len(data[0]))
+        else:
+            mean = np.mean(np.array(projected_cluster_dict[pj]), axis = 0)
+        means_after_bgm[pj] = mean
 
     amount = 0    
     for pj in projected_cluster_dict.keys():
@@ -367,22 +370,25 @@ def get_clusters_and_means(candidate_list, data, result, means_before):
 
 def plot_means(data, means_before, means_after_bgm, result):
     plt.scatter([x[0] for x in data], [y[1] for y in data], c=result, s=20)
-    plt.scatter([x[0] for x in means_after_bgm], [y[1] for y in means_after_bgm], c="green")
+    plt.scatter([x[0] for _, x in means_after_bgm.items()], [y[1] for _, y in means_after_bgm.items()], c="green")
     plt.scatter([x[0] for x in means_before], [y[1] for y in means_before], c="red")
 
     plt.show()
 
 
-def find_outliers(data, candidate_list, projected_cluster_dict, clustered_points, means_after_bgm, degree_of_freedom=None, alpha=0.001):
+def find_outliers(data, candidate_list, projected_cluster_dict, clustered_points, means_after_bgm, result, degree_of_freedom=None, alpha=0.001):
     inv_cov_dict = dict()
 
-    for key in projected_cluster_dict.keys():   
+    for key in projected_cluster_dict.keys():  
         cov = np.cov(np.array(projected_cluster_dict[key]).T)
-        inv_covmat= np.linalg.inv(cov)
+        try:
+            inv_covmat = np.linalg.inv(cov)
+        except:
+            inv_covmat = np.zeros(cov.shape)
         inv_cov_dict[key] = inv_covmat
         
     if not degree_of_freedom:
-        degree_of_freedom = (len(data[0])-1) *(len(data[1])-1)
+        degree_of_freedom = len(set(result)) ** 2
     #degree_of_freedom = 10
     chi_crit = chi2.ppf(alpha, df=degree_of_freedom)
 
@@ -396,6 +402,11 @@ def find_outliers(data, candidate_list, projected_cluster_dict, clustered_points
             print(f"    Found an outlier with the distance {md} at point {clustered_points[i]}")
 
     return clustered_points
+
+
+def plot_clustered(clustered):
+    plt.scatter([x[1][0] for x in clustered], [y[1][1] for y in clustered], c = [z[0] for z in clustered])
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -420,6 +431,6 @@ if __name__ == "__main__":
     result, gmm, means = get_result(data, candidate_list, inv_cov_cluster_dict)
     means_after_bgm, cluster_dict, cluster_points = get_clusters_and_means(candidate_list, data, result, means)
     plot_means(data, means, means_after_bgm, result)
-    clustered = find_outliers(data, candidate_list, cluster_dict, cluster_points, means_after_bgm)
+    clustered = find_outliers(data, candidate_list, cluster_dict, cluster_points, means_after_bgm, result)
     
     
