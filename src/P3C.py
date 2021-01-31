@@ -19,6 +19,16 @@ from src.datapoint import DataPoint
 
     
 def load_data(path, delimeter=','):
+    """
+    Reads the data from a CSV file
+    Skips lines starting with #
+    
+    Arguments:
+    path - path of the file to read
+    (optional) delimeter - delimeter between columns
+    Returns: Data in form of a 2D array
+    """
+
     data = []
     with open(path, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=delimeter, quotechar='|')
@@ -29,6 +39,14 @@ def load_data(path, delimeter=','):
                 
                 
 def normalize_data(data):
+    """
+    Normalizes the data to [0, 1]
+    
+    Arguments:
+    data - object to normalize
+    Returns: Normalized data
+    """
+
     scaler = preprocessing.MinMaxScaler()
     scaler.fit(data)
     data = scaler.transform(data)
@@ -36,6 +54,15 @@ def normalize_data(data):
 
 
 def split_into_bins(data):
+    """
+    Splits the data into bins along each axis
+    It creates floor(1 + log2(len(data))) bins for each axis
+    
+    Arguments:
+    data - data array to split up into bins
+    Returns: An array of bins for each dimension, number of bins per axis
+    """
+
     bins = []
     for col_idx in range(len(data[0])):
         column_bins = []
@@ -67,6 +94,13 @@ def split_into_bins(data):
 
 # find the bin with the highest support and mark it
 def mark_highest_support(column_bins):
+    """
+    Iterates over the bins to find the one with the highest support
+    When the bin is found, it gets marked
+    
+    Arguments:
+    column_bins - bins to be marked
+    """
     max_support = 0
     max_index = 0
     for _bin in column_bins:
@@ -80,22 +114,36 @@ def mark_highest_support(column_bins):
 
 # perform chisquared for the support 
 def mark_bins(column_bins, nr_of_bins, alpha=0.001, stat=1):
+    """
+    Keep marking bins until they are all marked
+    Mark the bins with the highest support first
+    
+    Arguments:
+    column_bins - bins to be marked
+    nr_of_bins - number of bins for each dimension
+    (optional) alpha - alpha value limit for the chisquare test
+    (optional) stat - stat value treshold for the chisquare test
+    """
     while (stat > alpha):
         # support list of all *unmarked* bins
         support_list = [column_bins[i].support for i in range(nr_of_bins) if not column_bins[i].marked]
-        # print(support_list)
         # if there are no unmarked bins, end the process
         if len(support_list) == 0: 
             break
         (stat, p) = chisquare(support_list)
-        #print('stat', stat)
-        #print('p', p)
         if (stat > alpha):
             mark_highest_support(column_bins)
     return column_bins
 
 
 def mark_merge_bins(column_bins):
+    """
+    Marks adjacent bins that need to be merged 
+    
+    Arguments:
+    column_bins - bins to be merged
+    """
+
     for i, _bin1 in enumerate(column_bins):
         for j, _bin2 in enumerate(column_bins[i+1:]):
             if _bin1.marked == _bin2.marked:
@@ -104,8 +152,14 @@ def mark_merge_bins(column_bins):
                 break
 
 
-# merge each bin in the list by extending the interval and combining support
 def merge_bin(all_column_bins, column_bin):
+    """
+    Merge each bin in the list by extending the interval and combining support 
+    
+    Arguments:
+    all_column_bins - all bins
+    column_bins - bins for one dimension
+    """
     for bin_index in column_bin.merge_with:
             column_bin.interval.end = all_column_bins[bin_index].interval.end
             column_bin.support += all_column_bins[bin_index].support
@@ -114,6 +168,12 @@ def merge_bin(all_column_bins, column_bin):
 
 # merge bins of a single column
 def merge_column_bins(column_bins):
+    """
+    Merge bins in one dimension 
+    
+    Arguments:
+    column_bins - bins for one dimension
+    """
     i = 0
     new_bins = []
     while i < len(column_bins):
@@ -134,6 +194,12 @@ def merge_column_bins(column_bins):
 
 
 def merge_all_bins(bins):
+    """
+    Does all steps to merge all bins in all dimensions
+    
+    Arguments:
+    bins - array of all bins
+    """
     new_bins = []
     for column_bins in bins:
         new_bins.append(merge_column_bins(column_bins))
@@ -141,33 +207,31 @@ def merge_all_bins(bins):
 
 
 def create_new_candidate(candidate, dim_bin, reevaluated_points):
+    """
+    Creates a new candidate (potential signature)
+    
+    Arguments:
+    candidate - candidate to be expanded upon
+    dim_bin - bins for a dimension
+    reevaluated_points - points that fit the candidate
+    """
+
     current_bins_list = []
     current_bins_list.extend(candidate.bins)
     current_bins_list.append(dim_bin)
     return PSignature(current_bins_list, reevaluated_points)
 
 
-# def generate_candidate_list(candidate_list, current_dim_bins, threshold, current_dim):
-#     new_candidates = []
-#     for candidate in candidate_list:
-#         for dim_bin in current_dim_bins:
-#             if dim_bin.marked:
-#                 expected_sup = candidate.get_support() * dim_bin.get_width()            
-#                 reevaluated_points = candidate.reevaluate_assigned_points(dim_bin, current_dim)
-#                 r_support = len(reevaluated_points)
-#                 if r_support == 0:
-#                     continue
-#                 print('R support {0}, expected support {1}'.format(r_support, expected_sup))
-#                 print('Poisson distribution:', poisson.pmf(r_support, expected_sup), r_support, expected_sup)
-
-#                 if poisson.pmf(r_support, expected_sup) < threshold:
-#                     new_candidate = create_new_candidate(candidate, dim_bin, reevaluated_points)
-#                     new_candidates.append(new_candidate)
-#                     print("Length of new candidates after poisson", len(new_candidates))
-#     return new_candidates
-
-
 def construct_candidate_tree_start(data, new_bins):
+    """
+    Construcst an entire tree of candidates, leaves become the candidates
+    as they contain all combinations
+    
+    Arguments:
+    data - all datapoints
+    new_bins - all bins after merging
+    """
+
     candidate_tree = {}
     candidate_tree_0 = {}
     for dim in range(0, len(data[0])):
@@ -182,6 +246,15 @@ def construct_candidate_tree_start(data, new_bins):
 
 
 def construct_new_level(parent_level_id, candidate_tree, threshold):
+    """
+    Construcst a new level for the candidate tree
+    
+    Arguments:
+    parent_level_id - the ID of the parent level
+    candidate_tree - the tree to which the level is added
+    threshold - threshold for the statistical test
+    """
+    
     stop = False
     print("Constructing candidate tree: ")
     while not stop:
@@ -190,7 +263,6 @@ def construct_new_level(parent_level_id, candidate_tree, threshold):
         new_level_tree = {}
         print("    Level: ", parent_level_id)
         for (p1_id, p1_psigs) in parent_level.items():
-            #print("parent_level items", p1_id)
             for (p2_id, p2_psigs) in parent_level.items():
                 l = len(p1_id)
                 p1_ids = p1_id.split()
@@ -211,6 +283,15 @@ def construct_new_level(parent_level_id, candidate_tree, threshold):
                     
 
 def construct_new_signatures(p1_psigs, p2_psigs, threshold):
+    """
+    Construcst a potential signature from 2 parents
+    
+    Arguments:
+    p1_psigs - first parent signature
+    p2_psigs - second parent signature
+    threshold - threshold for the statistical test
+    """
+    
     new_candidates = {}
     for _, p1_psig in p1_psigs.items():
         p1_psig_id = ' '.join(sorted(p1_psig.id))
@@ -229,21 +310,24 @@ def construct_new_signatures(p1_psigs, p2_psigs, threshold):
                     r_support = len(reevaluated_points)
                     if r_support == 0:
                         continue
-#                     print('R support {0}, expected support {1}'.format(r_support, expected_sup))
-#                     print('Poisson distribution:', poisson.pmf(r_support, expected_sup), r_support, expected_sup)
 
                     if poisson.pmf(r_support, expected_sup) < threshold:
                         p1_psig.parent = True
                         p2_psig.parent = True
                         new_candidate = create_new_candidate(candidate, dim_bin, reevaluated_points)
                         new_candidates[p12_psig_id] = new_candidate
-#                         print('{} + {} = {}'.format(p1_psig_id, p2_psig_id, p12_psig_id))
-#                         print("Length of new candidates after poisson", len(new_candidates))
 
     return new_candidates
 
 
 def get_candidates(tree):
+    """
+    Iterates over a tree and pick candidates
+    
+    Arguments:
+    tree - tree to iterate over
+    """
+
     candidates = {}
     for (level, dim_candidates) in tree.items():
         for (dim_candidate_id, dim_bins_candidates) in dim_candidates.items():
@@ -265,6 +349,10 @@ def get_candidates(tree):
 
 
 def test_thresholds():
+    """
+    Try multiple thresholds, used to optimze the threshold parameter
+    """
+
     for t in range(1, 20):
         threshold = 1e-2 / (10**t)
         tree = construct_candidate_tree_start()
@@ -274,6 +362,10 @@ def test_thresholds():
 
 
 def get_inv_cov_cluster_dict(candidate_list):
+    """
+    Returns the dictionary of inverted covariation matrices for a cluster
+    for a given list of candidates
+    """
     inv_cov_cluster_dict = dict()
 
     for i,can in enumerate(candidate_list):   
@@ -285,13 +377,19 @@ def get_inv_cov_cluster_dict(candidate_list):
 
 
 def get_result(data, candidate_list, inv_cov_cluster_dict):
+    """
+    Returns the final result, labeled points in the dataset
+    
+    Arguments:
+    data - orginal data set
+    candidate_list - list of discovered candidates 
+    inv_cov_cluster_dict - dictionary of inverted covariation matrices for a cluster
+    """
     #fuzzy membership matrix
     #initialize matrix with datapoints in one column and found cluster (e.g. 1,2,3) in other column
     #initialize clusterpoints with a 1 at the matrix intersection
     matrix = np.zeros(dtype='float', shape=(len(data), len(candidate_list)))
     dps = []
-
-    # print(matrix.shape)
 
     cov_dat = np.cov(np.array(data).T)
     inv_covmat_dat= np.linalg.inv(cov_dat)
@@ -310,7 +408,6 @@ def get_result(data, candidate_list, inv_cov_cluster_dict):
         for r in range(len(candidate_list)):
             if matrix[i][r] == 1:
                 matrix[i][r] = fraction
-        #"""
         if len(data_point.assigned_clusters) == 0:
             closest = sys.maxsize
             closest_candidate_idx = 0
@@ -321,7 +418,6 @@ def get_result(data, candidate_list, inv_cov_cluster_dict):
                     closest_candidate_idx = idx
             data_point.assigned_clusters.append(closest_candidate_idx)
             matrix[i][closest_candidate_idx] = 1
-        #"""
         dps.append(data_point)
                     
     #compute mean of support set of cluster
@@ -329,21 +425,25 @@ def get_result(data, candidate_list, inv_cov_cluster_dict):
     #compute the shortest mahalanobis distance(scipy.spatial.distance.mahalanobis) 
     # of unassigned points to cluster core and assign
 
-    # EM -> probably need to implement ourself
     means = np.array([c.get_means() for c in candidate_list])
-
     gmm = mixture.BayesianGaussianMixture(n_components=len(candidate_list), covariance_type='full').fit(matrix)
-
-    # gmm = mixture.GaussianMixture(n_components=len(candidate_list), covariance_type='full').fit(data)
-
     result = gmm.predict(matrix)
 
-    # result = gmm.predict(data)
 
     return result, gmm, means
 
 
 def get_clusters_and_means(candidate_list, data, result, means_before):
+    """
+    Returns the clusters and their means
+    
+    Arguments:
+    data - orginal data set
+    candidate_list - list of discovered candidates 
+    result - algo result, labeled points
+    means_before - means before optmization
+    """
+
     clustered_points = list()
     projected_cluster_dict = defaultdict(list)
 
@@ -371,6 +471,10 @@ def get_clusters_and_means(candidate_list, data, result, means_before):
 
 
 def plot_means(data, means_before, means_after_bgm, result):
+    """
+    Utility method to plot a graph in the report
+    """
+
     plt.scatter([x[0] for x in data], [y[1] for y in data], c=result, s=20)
     plt.scatter([x[0] for _, x in means_after_bgm.items()], [y[1] for _, y in means_after_bgm.items()], c="green")
     plt.scatter([x[0] for x in means_before], [y[1] for y in means_before], c="red")
@@ -379,6 +483,18 @@ def plot_means(data, means_before, means_after_bgm, result):
 
 
 def find_outliers(data, candidate_list, projected_cluster_dict, clustered_points, means_after_bgm, result, degree_of_freedom=None, alpha=0.001):
+    """
+    Returns the clusters and their means
+    
+    Arguments:
+    data - orginal data set
+    candidate_list - list of discovered candidates 
+    result - algo result, labeled points
+    projected_cluster_dict - projected cluster dictionary
+    means_after_bgm - optimized means after running the Bayesian Gaussian Mixture 
+    (optional) degree_of_freedom - degrees of freedom in the statistical test
+    (optional) alpha - alpha threshold
+    """
     inv_cov_dict = dict()
 
     for key in projected_cluster_dict.keys():  
@@ -391,7 +507,6 @@ def find_outliers(data, candidate_list, projected_cluster_dict, clustered_points
         
     if not degree_of_freedom:
         degree_of_freedom = len(set(result)) ** 2
-    #degree_of_freedom = 10
     chi_crit = chi2.ppf(alpha, df=degree_of_freedom)
 
     noise_cluster_idx  = len(candidate_list)
@@ -407,10 +522,15 @@ def find_outliers(data, candidate_list, projected_cluster_dict, clustered_points
 
 
 def plot_clustered(clustered):
+    """
+    Utility method to plot a graph in the report
+    """
     plt.scatter([x[1][0] for x in clustered], [y[1][1] for y in clustered], c = [z[0] for z in clustered])
     plt.show()
 
 
+# Entry point if used from CLI
+# only accepts one argument, a path of the dataset
 if __name__ == "__main__":
     file_path = sys.argv[1]
     data = load_data(file_path)

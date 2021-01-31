@@ -1,4 +1,7 @@
 class DataPoint:
+    # Class that represents a point in the dataset
+    # It keeps track of its coordinates, as well as of cluster to 
+    # which it is assigned.
     def __init__(self, coords):
         self.coords = coords
         self.assigned_clusters = []

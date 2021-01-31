@@ -1,4 +1,6 @@
 class Interval:
+    # Stores an interval
+    # Keeps track of its start, end and length
     def __init__(self, start, end):
         self.start = start
         self.end = end
